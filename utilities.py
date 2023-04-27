@@ -1,0 +1,79 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+from datetime import datetime
+import pandas as pd
+
+
+
+def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
+    """Plot the regret of the different algorithms and save the regrets as an option.
+
+    args:
+        regrets: list of numpy arrays of shape (N, T) where N is the number of runs and T the number of time steps.
+        label: list of strings of length len(regrets) containing the name of the algorithms.
+        save: boolean, if True, save the regrets in a folder.
+        params: dictionary of dictionaries containing the parameters of the algorithms.
+    
+        
+    """
+
+    fig = plt.figure(figsize=(16, 9))
+
+    now = datetime.now()
+    dt_string = now.strftime("%y_%m_%d_%H:%M:%S")
+
+    
+
+    for key in regretsdict:
+
+        regrets = regretsdict[key]
+        N = regretsdict[key].shape[0]
+        T = regretsdict[key].shape[1]
+        cumregret = np.cumsum(regrets, axis = 1)
+        sorted = np.argsort(cumregret[:,-1])
+
+        worse = cumregret[sorted[int(0.95*N)],:]
+        best = cumregret[sorted[int(0.05*N)],:]
+
+        meancumregret = np.mean(cumregret, axis=0)
+        # std = np.std(cumregret, axis=0)
+
+        plt.plot(np.arange(T),meancumregret, label=key)
+        plt.fill_between(np.arange(T), worse, best, alpha=0.2)
+    
+    plt.ylim(bottom=-1)
+    plt.xlim(left = -1)
+    plt.xlabel("t", fontsize=20)
+    plt.xticks(fontsize=20)
+    plt.ylabel("Cumulative Regret", fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.legend(loc='upper left', fontsize=20)
+
+    if save:
+        if not os.path.exists(f"experiments"):
+            os.makedirs(f"experiments")
+
+        if not os.path.exists(f"experiments/{banditenv.name}"):
+            os.makedirs(f"experiments/{banditenv.name}")
+
+        root = f"experiments/{banditenv.name}/d{banditenv.d}_Deltamin{banditenv.Deltamin:.2f}"
+        if not os.path.exists(root):
+            os.makedirs(root)
+
+        plt.savefig(f"{root}/regret{dt_string}.png", dpi=300)
+        for algo in regretsdict:
+            if not os.path.exists(f"{root}/regret_{algo}"):
+                os.makedirs(f"{root}/regret_{algo}")
+            if not os.path.exists(f"{root}/regret_{algo}/T{T}"):
+                os.makedirs(f"{root}/regret_{algo}/T{T}")
+            if not os.path.exists(f"{root}/regret_{algo}/T{T}/regrets"):
+                df = pd.DataFrame(regretsdict[algo], columns = [str(t) for t in range(T)])
+                for key in paramsdict[algo]:
+                    df[key] = [paramsdict[algo][key] for _ in range(N)]
+                df.to_csv(f"{root}/regret_{algo}/T{T}/regrets.csv", header=True)
+            else:
+                df = pd.DataFrame(regretsdict[algo], columns = [str(t) for t in range(T)])
+                for param in paramsdict[algo]:
+                    df[key] = [paramsdict[algo][param] for _ in range(N)]
+                df.to_csv(f"{root}/regret_{algo}/T{T}/regrets.csv", mode='a', header=False)
