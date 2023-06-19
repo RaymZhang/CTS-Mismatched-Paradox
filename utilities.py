@@ -6,7 +6,7 @@ import pandas as pd
 
 
 
-def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
+def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None, mode = 1):
     """Plot the regret of the different algorithms and save the regrets as an option.
 
     args:
@@ -23,7 +23,8 @@ def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
     now = datetime.now()
     dt_string = now.strftime("%y_%m_%d_%H:%M:%S")
 
-    
+
+    colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
 
     for key in regretsdict:
 
@@ -31,16 +32,22 @@ def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
         N = regretsdict[key].shape[0]
         T = regretsdict[key].shape[1]
         cumregret = np.cumsum(regrets, axis = 1)
-        sorted = np.argsort(cumregret[:,-1])
+        # sorted = np.argsort(cumregret[:,-1])
+        std = np.std(cumregret, axis=0)
 
-        worse = cumregret[sorted[int(0.95*N)],:]
-        best = cumregret[sorted[int(0.05*N)],:]
+        # worse = cumregret[sorted[int(0.95*N)],:]
+        # best = cumregret[sorted[int(0.05*N)],:]
 
         meancumregret = np.mean(cumregret, axis=0)
         # std = np.std(cumregret, axis=0)
 
-        plt.plot(np.arange(T),meancumregret, label=key)
-        plt.fill_between(np.arange(T), worse, best, alpha=0.2)
+        if mode == 1:
+            plt.plot(np.arange(T),meancumregret, label=key)
+            plt.fill_between(np.arange(T), meancumregret - std*1.96, meancumregret + std*1.96, alpha=0.2)
+        elif mode == 2:
+            for i in range(N):
+                plt.plot(np.arange(T),cumregret[i,:], label=key+"_"+str(i), color = colors[i])
+        
     
     plt.ylim(bottom=-1)
     plt.xlim(left = -1)
@@ -50,18 +57,20 @@ def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
     plt.yticks(fontsize=20)
     plt.legend(loc='upper left', fontsize=20)
 
+    
+    if not os.path.exists(f"experiments"):
+        os.makedirs(f"experiments")
+
+    if not os.path.exists(f"experiments/{banditenv.name}"):
+        os.makedirs(f"experiments/{banditenv.name}")
+
+    root = f"experiments/{banditenv.name}/d{banditenv.d}_Deltamin{banditenv.Deltamin:.2f}"
+    if not os.path.exists(root):
+        os.makedirs(root)
+    plt.savefig(f"{root}/mode{mode}_regret{dt_string}.png", dpi=300)
+
     if save:
-        if not os.path.exists(f"experiments"):
-            os.makedirs(f"experiments")
-
-        if not os.path.exists(f"experiments/{banditenv.name}"):
-            os.makedirs(f"experiments/{banditenv.name}")
-
-        root = f"experiments/{banditenv.name}/d{banditenv.d}_Deltamin{banditenv.Deltamin:.2f}"
-        if not os.path.exists(root):
-            os.makedirs(root)
-
-        plt.savefig(f"{root}/regret{dt_string}.png", dpi=300)
+        
         for algo in regretsdict:
             if not os.path.exists(f"{root}/regret_{algo}"):
                 os.makedirs(f"{root}/regret_{algo}")
@@ -77,3 +86,5 @@ def plot_regret(regretsdict, save = False, paramsdict = None, banditenv = None):
                 for param in paramsdict[algo]:
                     df[key] = [paramsdict[algo][param] for _ in range(N)]
                 df.to_csv(f"{root}/regret_{algo}/T{T}/regrets.csv", mode='a', header=False)
+
+    
